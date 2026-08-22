@@ -58,27 +58,35 @@ describe("extractWordleWords", () => {
     const r = extractWordleWords("hello🎵world", set("hello", "world"));
     expect(r.words.map((w) => w.word)).toEqual(["hello", "world"]);
     expect(r.lines[0].spans).toEqual([
-      { start: 0, end: 5 },
-      { start: 7, end: 12 },
+      { start: 0, end: 5, words: ["hello"] },
+      { start: 7, end: 12, words: ["world"] },
     ]);
   });
 
   it("records highlight spans in original character positions", () => {
     // "go can'ts go": token "cants" spans original chars 3..8 (apostrophe included)
     const r = extractWordleWords("go can'ts go", set("cants"));
-    expect(r.lines[0].spans).toEqual([{ start: 3, end: 9 }]);
+    expect(r.lines[0].spans).toEqual([{ start: 3, end: 9, words: ["cants"] }]);
   });
 
   it("merges overlapping spans for display but counts each match", () => {
     const r = extractWordleWords("stones", set("stone", "tones"));
     expect(r.words.map((w) => w.word)).toEqual(["stone", "tones"]);
-    expect(r.lines[0].spans).toEqual([{ start: 0, end: 6 }]);
+    expect(r.lines[0].spans).toEqual([{ start: 0, end: 6, words: ["stone", "tones"] }]);
+  });
+
+  it("does not duplicate a word repeated in separate spans on one line", () => {
+    const r = extractWordleWords("hello hello", set("hello"));
+    expect(r.lines[0].spans).toEqual([
+      { start: 0, end: 5, words: ["hello"] },
+      { start: 6, end: 11, words: ["hello"] },
+    ]);
   });
 
   it("returns one annotated line per lyrics line, including empty ones", () => {
     const r = extractWordleWords("hello\n\nworld", set("hello"));
     expect(r.lines).toHaveLength(3);
-    expect(r.lines[0].spans).toEqual([{ start: 0, end: 5 }]);
+    expect(r.lines[0].spans).toEqual([{ start: 0, end: 5, words: ["hello"] }]);
     expect(r.lines[1]).toEqual({ text: "", spans: [] });
     expect(r.lines[2].spans).toEqual([]);
   });

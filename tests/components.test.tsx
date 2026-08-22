@@ -50,7 +50,7 @@ describe("LyricsPanel", () => {
     render(
       <LyricsPanel
         lines={[
-          { text: "I hear the drums", spans: [{ start: 11, end: 16 }] },
+          { text: "I hear the drums", spans: [{ start: 11, end: 16, words: ["drums"] }] },
           { text: "", spans: [] },
         ]}
       />
@@ -67,8 +67,8 @@ describe("LyricsPanel", () => {
           {
             text: "hello world hello",
             spans: [
-              { start: 0, end: 5 },
-              { start: 12, end: 17 },
+              { start: 0, end: 5, words: ["hello"] },
+              { start: 12, end: 17, words: ["hello"] },
             ],
           },
         ]}

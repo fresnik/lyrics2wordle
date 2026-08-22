@@ -10,11 +10,16 @@ export interface WordEntry {
 export interface Span {
   start: number;
   end: number;
+  /** Distinct words whose matches this span covers, in first-appearance order. Never empty. */
+  words: string[];
 }
 
 export interface AnnotatedLine {
   text: string;
-  /** Sorted, non-overlapping, and within [0, text.length] — consumers (e.g. LyricsPanel) rely on this invariant. */
+  /**
+   * Sorted, non-overlapping, within [0, text.length], and each carrying a
+   * non-empty `words` — consumers (e.g. LyricsPanel) rely on this invariant.
+   */
   spans: Span[];
 }
 
@@ -64,8 +69,12 @@ function mergeSpans(spans: Span[]): Span[] {
   const merged: Span[] = [];
   for (const s of sorted) {
     const last = merged[merged.length - 1];
-    if (last && s.start <= last.end) last.end = Math.max(last.end, s.end);
-    else merged.push({ ...s });
+    if (last && s.start <= last.end) {
+      last.end = Math.max(last.end, s.end);
+      for (const w of s.words) if (!last.words.includes(w)) last.words.push(w);
+    } else {
+      merged.push({ ...s, words: [...s.words] });
+    }
   }
   return merged;
 }
@@ -86,7 +95,7 @@ export function extractWordleWords(lyrics: string, wordSet: Set<string>): Extrac
         }
         if (tok.norm.length === 5) entry.wholeCount++;
         else entry.substringCount++;
-        spans.push({ start: tok.map[i], end: tok.map[i + 4] + 1 });
+        spans.push({ start: tok.map[i], end: tok.map[i + 4] + 1, words: [cand] });
       }
     }
     return { text, spans: mergeSpans(spans) };

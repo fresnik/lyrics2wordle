@@ -1,3 +1,4 @@
+import "server-only";
 import { extractWordleWords, type ExtractionResult } from "./extract";
 import { getSongById } from "./lrclib";
 import { canonicalSlug } from "./slug";

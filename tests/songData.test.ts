@@ -24,4 +24,11 @@ describe("getSongData", () => {
     expect(data?.hasLyrics).toBe(false);
     expect(data?.extraction.words).toEqual([]);
   });
+
+  it("treats blank lyrics as having no lyrics", async () => {
+    mockFetch(200, { ...record, plainLyrics: "   " });
+    const data = await getSongData(1);
+    expect(data?.hasLyrics).toBe(false);
+    expect(data?.extraction.words).toEqual([]);
+  });
 });

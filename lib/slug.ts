@@ -5,7 +5,7 @@ function capSlug(s: string): string {
 }
 
 // Cosmetic-only slug for shareable URLs: the numeric lrclib ID is authoritative,
-// and slug mismatches 301-redirect to the canonical slug elsewhere.
+// and slug mismatches permanently redirect (308) to the canonical slug elsewhere.
 export function slugify(s: string): string {
   const base = s
     .normalize("NFD")

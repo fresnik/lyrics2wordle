@@ -1,7 +1,7 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect, unstable_rethrow } from "next/navigation";
 import LyricsPanel from "@/components/LyricsPanel";
 import ShareButton from "@/components/ShareButton";
 import WordTiles from "@/components/WordTiles";
@@ -24,21 +24,35 @@ async function load(idParam: string): Promise<SongPageData> {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const data = await load(id);
-  const title = `${data.trackName} — ${data.artistName} | Lyrics2Wordle`;
-  const n = data.extraction.words.length;
-  const description = `${n} Wordle ${n === 1 ? "word" : "words"} found in the lyrics`;
-  return {
-    title,
-    description,
-    openGraph: { title, description },
-    twitter: { card: "summary", title, description },
-  };
+  // generateMetadata runs in its own error scope, separate from the page's:
+  // an uncaught throw here would bypass error.tsx and produce an unstyled
+  // failure. notFound()/permanentRedirect() are Next-internal control-flow
+  // errors and must be rethrown so Next still handles them; genuine failures
+  // (e.g. lrclib unreachable) fall back to generic metadata so the page body
+  // is left to render (and error.tsx to catch it) as normal.
+  try {
+    const data = await load(id);
+    const title = `${data.trackName} — ${data.artistName} | Lyrics2Wordle`;
+    const description = data.hasLyrics
+      ? `${data.extraction.words.length} Wordle ${data.extraction.words.length === 1 ? "word" : "words"} found in the lyrics`
+      : "No lyrics on record";
+    return {
+      title,
+      description,
+      openGraph: { title, description },
+      twitter: { card: "summary", title, description },
+    };
+  } catch (err) {
+    unstable_rethrow(err);
+    return { title: "Lyrics2Wordle" };
+  }
 }
 
 export default async function SongPage({ params }: Props) {
   const { id, slug } = await params;
   const data = await load(id);
+  // Permanent (308) is safe here: lrclib records are effectively immutable
+  // (same assumption behind the 30-day fetch revalidate in lib/lrclib.ts).
   if (slug !== data.slug) permanentRedirect(`/song/${data.id}/${data.slug}`);
 
   const n = data.extraction.words.length;
@@ -53,7 +67,8 @@ export default async function SongPage({ params }: Props) {
         <h1 className="mt-2 text-3xl font-extrabold">{data.trackName}</h1>
         <p className="text-gray-600 dark:text-gray-400">
           {data.artistName}
-          {data.albumName ? ` · ${data.albumName}` : ""} · {n} Wordle {n === 1 ? "word" : "words"}
+          {data.albumName ? ` · ${data.albumName}` : ""} ·{" "}
+          {data.hasLyrics ? `${n} Wordle ${n === 1 ? "word" : "words"}` : "No lyrics on record"}
         </p>
         <div className="mt-3">
           <ShareButton path={`/song/${data.id}/${data.slug}`} />

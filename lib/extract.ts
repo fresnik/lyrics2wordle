@@ -37,9 +37,13 @@ function tokenizeLine(line: string): Token[] {
   let cur: Token | null = null;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (APOSTROPHES.has(ch)) continue; // joins a token, contributes no letter
+    // Apostrophes and combining marks (e.g. an already-decomposed "é" as
+    // e + U+0301) join a token without contributing a letter or breaking it.
+    if (APOSTROPHES.has(ch) || /\p{M}/u.test(ch)) continue;
     const base = ch.normalize("NFD")[0].toLowerCase();
-    if (base >= "a" && base <= "z") {
+    // Non-decomposable letters (ø, ß, æ, …) don't reduce to a-z and are
+    // intentionally treated as separators — an accepted limitation.
+    if (base.length === 1 && base >= "a" && base <= "z") {
       if (!cur) {
         cur = { norm: "", map: [] };
         tokens.push(cur);
@@ -53,6 +57,7 @@ function tokenizeLine(line: string): Token[] {
   return tokens;
 }
 
+/** Merges overlapping or adjacent spans for display; each source match is still counted separately. */
 function mergeSpans(spans: Span[]): Span[] {
   const sorted = [...spans].sort((a, b) => a.start - b.start);
   const merged: Span[] = [];

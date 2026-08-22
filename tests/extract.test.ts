@@ -45,6 +45,24 @@ describe("extractWordleWords", () => {
     expect(r.words.map((w) => w.word)).toEqual(["cafes"]);
   });
 
+  it("strips diacritics when input is already NFD-decomposed", () => {
+    // "cafes" with the accent as a separate combining acute mark
+    // (U+0301) after the "e", instead of the precomposed "e-acute".
+    // Written with a literal \u escape so editors/tools cannot
+    // silently re-normalize the source file back to composed form.
+    const r = extractWordleWords("two cafe\u0301s", set("cafes"));
+    expect(r.words.map((w) => w.word)).toEqual(["cafes"]);
+  });
+
+  it("keeps span indices correct across surrogate-pair characters like emoji", () => {
+    const r = extractWordleWords("hello🎵world", set("hello", "world"));
+    expect(r.words.map((w) => w.word)).toEqual(["hello", "world"]);
+    expect(r.lines[0].spans).toEqual([
+      { start: 0, end: 5 },
+      { start: 7, end: 12 },
+    ]);
+  });
+
   it("records highlight spans in original character positions", () => {
     // "go can'ts go": token "cants" spans original chars 3..8 (apostrophe included)
     const r = extractWordleWords("go can'ts go", set("cants"));

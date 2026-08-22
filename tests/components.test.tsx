@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LyricsPanel from "@/components/LyricsPanel";
 import ShareButton from "@/components/ShareButton";
@@ -81,19 +81,29 @@ describe("LyricsPanel", () => {
   });
 });
 
-describe("SongContent hover highlighting", () => {
-  const extraction = {
-    words: [
-      { word: "stone", wholeCount: 0, substringCount: 1 },
-      { word: "tones", wholeCount: 0, substringCount: 1 },
-    ],
-    lines: [{ text: "stones", spans: [{ start: 0, end: 6, words: ["stone", "tones"] }] }],
-  };
-  const stoneName = "Copy stone (found inside a longer word)";
-  const tonesName = "Copy tones (found inside a longer word)";
+// "stones" containing whole-stem "stone" and substring-only "tones",
+// with the raw (unmerged) spans extractWordleWords now produces.
+const stonesExtraction = {
+  words: [
+    { word: "stone", wholeCount: 1, substringCount: 0 },
+    { word: "tones", wholeCount: 0, substringCount: 1 },
+  ],
+  lines: [
+    {
+      text: "stones",
+      spans: [
+        { start: 0, end: 5, words: ["stone"] },
+        { start: 1, end: 6, words: ["tones"] },
+      ],
+    },
+  ],
+};
+const stoneName = "Copy stone";
+const tonesName = "Copy tones (found inside a longer word)";
 
+describe("SongContent hover highlighting", () => {
   it("hovering a tile highlights the lyric marks containing that word", async () => {
-    render(<SongContent extraction={extraction} />);
+    render(<SongContent extraction={stonesExtraction} />);
     const mark = screen.getByText("stones");
     expect(mark).not.toHaveAttribute("data-highlighted");
     await userEvent.hover(screen.getByRole("button", { name: stoneName }));
@@ -103,7 +113,7 @@ describe("SongContent hover highlighting", () => {
   });
 
   it("hovering a merged lyric mark highlights all involved tiles", async () => {
-    render(<SongContent extraction={extraction} />);
+    render(<SongContent extraction={stonesExtraction} />);
     await userEvent.hover(screen.getByText("stones"));
     expect(screen.getByRole("button", { name: stoneName })).toHaveAttribute("data-highlighted");
     expect(screen.getByRole("button", { name: tonesName })).toHaveAttribute("data-highlighted");
@@ -114,9 +124,64 @@ describe("SongContent hover highlighting", () => {
   });
 
   it("focusing a tile also highlights the lyric marks (keyboard)", async () => {
-    render(<SongContent extraction={extraction} />);
+    render(<SongContent extraction={stonesExtraction} />);
+    await userEvent.tab(); // substring toggle
     await userEvent.tab(); // first tile button receives focus
     expect(screen.getByText("stones")).toHaveAttribute("data-highlighted");
+  });
+});
+
+describe("SongContent substring toggle", () => {
+  const toggleName = "Include words hidden inside longer words";
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("includes substring-only words by default", () => {
+    render(<SongContent extraction={stonesExtraction} />);
+    expect(screen.getByRole("checkbox", { name: toggleName })).toBeChecked();
+    expect(screen.getByRole("button", { name: tonesName })).toBeInTheDocument();
+    expect(screen.getByText("stones")).toBeInTheDocument();
+  });
+
+  it("unchecking hides substring-only tiles and shrinks lyric marks", async () => {
+    render(<SongContent extraction={stonesExtraction} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: toggleName }));
+    expect(screen.queryByRole("button", { name: tonesName })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: stoneName })).toBeInTheDocument();
+    // the merged "stones" mark shrinks to just the visible match "stone"
+    expect(screen.queryByText("stones")).not.toBeInTheDocument();
+    expect(screen.getByText("stone").tagName).toBe("MARK");
+  });
+
+  it("persists the choice to localStorage and restores it on mount", async () => {
+    render(<SongContent extraction={stonesExtraction} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: toggleName }));
+    expect(localStorage.getItem("lyrics2wordle:include-substring-words")).toBe("false");
+    cleanup();
+
+    render(<SongContent extraction={stonesExtraction} />);
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: toggleName })).not.toBeChecked()
+    );
+    expect(screen.queryByRole("button", { name: tonesName })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: toggleName }));
+    expect(localStorage.getItem("lyrics2wordle:include-substring-words")).toBe("true");
+    expect(screen.getByRole("button", { name: tonesName })).toBeInTheDocument();
+  });
+
+  it("omits the toggle when every word appears whole", () => {
+    render(
+      <SongContent
+        extraction={{
+          words: [{ word: "hello", wholeCount: 1, substringCount: 0 }],
+          lines: [{ text: "hello", spans: [{ start: 0, end: 5, words: ["hello"] }] }],
+        }}
+      />
+    );
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 });
 

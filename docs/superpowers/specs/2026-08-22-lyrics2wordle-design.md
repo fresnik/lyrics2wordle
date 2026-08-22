@@ -49,7 +49,8 @@ song's lyrics. Each song has a unique, shareable URL that recomputes the words o
 2. Word extraction runs server-side (see below).
 3. Page renders: header (title, artist, album, word count), word tiles, highlighted lyrics.
 4. If the URL's slug is not the canonical `slugify(artist)-slugify(title)`, respond with a
-   301 redirect to the canonical URL. `/song/{id}` without a slug redirects the same way.
+   permanent (308) redirect to the canonical URL. `/song/{id}` without a slug redirects the
+   same way. (Permanent is safe: lrclib records are effectively immutable.)
 5. `generateMetadata` emits per-song Open Graph/Twitter metadata:
    title `"{Track} — {Artist} | Lyrics2Wordle"`, description `"{N} Wordle words"`.
 

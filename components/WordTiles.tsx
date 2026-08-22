@@ -74,9 +74,8 @@ export default function WordTiles({ words, highlighted = [], onHover }: WordTile
                     </span>
                   ))}
                 </span>
-                {total > 1 && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">×{total}</span>
-                )}
+                {/* Always shown (even ×1) so tile rows line up evenly. */}
+                <span className="text-xs text-gray-500 dark:text-gray-400">×{total}</span>
               </button>
             </li>
           );

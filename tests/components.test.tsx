@@ -18,10 +18,10 @@ describe("WordTiles", () => {
     expect(screen.getByTitle("Found inside a longer word")).toBeInTheDocument();
   });
 
-  it("shows a ×N badge only for repeated words", () => {
+  it("shows a ×N badge on every word so the columns line up, including ×1", () => {
     render(<WordTiles words={words} />);
     expect(screen.getByText("×3")).toBeInTheDocument();
-    expect(screen.queryByText("×1")).not.toBeInTheDocument();
+    expect(screen.getByText("×1")).toBeInTheDocument();
   });
 
   it("copies a word on click and shows a toast", async () => {

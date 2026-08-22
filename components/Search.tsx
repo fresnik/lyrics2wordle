@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { canonicalSlug } from "@/lib/slug";
 import type { SearchResult } from "@/lib/lrclib";
@@ -8,8 +8,9 @@ import type { SearchResult } from "@/lib/lrclib";
 type Status = "idle" | "loading" | "done" | "error";
 
 function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
+  const total = Math.max(0, Math.round(seconds));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
@@ -18,18 +19,25 @@ export default function Search() {
   const [artist, setArtist] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [results, setResults] = useState<SearchResult[]>([]);
+  // Guards against overlapping searches: if a newer search starts before an
+  // older one resolves, the older one's response (and any error) is ignored.
+  const requestRef = useRef(0);
 
   async function doSearch() {
-    if (!track.trim()) return;
+    if (!track.trim() || status === "loading") return;
+    const myRequest = ++requestRef.current;
     setStatus("loading");
     try {
       const params = new URLSearchParams({ track: track.trim() });
       if (artist.trim()) params.set("artist", artist.trim());
       const res = await fetch(`/api/search?${params}`);
       if (!res.ok) throw new Error(String(res.status));
-      setResults(await res.json());
+      const data = await res.json();
+      if (myRequest !== requestRef.current) return;
+      setResults(data);
       setStatus("done");
     } catch {
+      if (myRequest !== requestRef.current) return;
       setStatus("error");
     }
   }
@@ -37,8 +45,20 @@ export default function Search() {
   const inputClass =
     "rounded-md border border-gray-300 bg-white px-3 py-2 outline-none focus:border-[#6aaa64] focus:ring-2 focus:ring-[#6aaa64]/30 dark:border-gray-700 dark:bg-gray-950";
 
+  const announcement =
+    status === "loading"
+      ? "Searching…"
+      : status === "done"
+        ? results.length > 0
+          ? `${results.length} results found`
+          : "No results"
+        : "";
+
   return (
     <div className="mt-8">
+      <div aria-live="polite" role="status" className="sr-only">
+        {announcement}
+      </div>
       <form
         onSubmit={(e) => {
           e.preventDefault();

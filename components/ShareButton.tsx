@@ -11,7 +11,7 @@ export default function ShareButton({ path }: { path: string }) {
   return (
     <button
       type="button"
-      onClick={() => copy(window.location.origin + path)}
+      onClick={() => void copy(window.location.origin + path)}
       className="cursor-pointer rounded-md bg-[#6aaa64] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#5c9a57] dark:bg-[#538d4e]"
     >
       {label}

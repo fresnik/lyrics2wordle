@@ -60,7 +60,7 @@ export default async function SongPage({ params }: Props) {
     <main className="mx-auto max-w-5xl px-4 py-8">
       <header className="mb-8">
         <p className="text-sm">
-          <Link href="/" className="font-semibold text-[#6aaa64] hover:underline">
+          <Link href="/" className="font-semibold text-[#538d4e] hover:underline dark:text-[#7cb56f]">
             ← Lyrics2Wordle
           </Link>
         </p>

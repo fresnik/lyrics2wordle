@@ -25,4 +25,11 @@ describe("GET /api/search", () => {
     const res = await GET(new NextRequest("http://localhost/api/search?track=africa"));
     expect(res.status).toBe(502);
   });
+
+  it("returns 400 when track is too long", async () => {
+    const track = "a".repeat(201);
+    const res = await GET(new NextRequest(`http://localhost/api/search?track=${track}`));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "track too long" });
+  });
 });

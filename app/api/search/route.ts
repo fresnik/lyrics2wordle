@@ -7,9 +7,13 @@ export async function GET(req: NextRequest) {
   if (!track) {
     return NextResponse.json({ error: "track is required" }, { status: 400 });
   }
+  if (track.length > 200) {
+    return NextResponse.json({ error: "track too long" }, { status: 400 });
+  }
   try {
     return NextResponse.json(await searchSongs(track, artist));
-  } catch {
+  } catch (err) {
+    console.error("searchSongs failed", err);
     return NextResponse.json({ error: "Lyrics service unavailable" }, { status: 502 });
   }
 }

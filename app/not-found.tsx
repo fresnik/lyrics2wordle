@@ -7,7 +7,7 @@ export default function NotFound() {
       <p className="mt-2 text-gray-600 dark:text-gray-400">
         That link doesn&apos;t match any song on lrclib.net.
       </p>
-      <Link href="/" className="mt-6 inline-block font-semibold text-[#6aaa64] hover:underline">
+      <Link href="/" className="mt-6 inline-block font-semibold text-[#538d4e] hover:underline dark:text-[#7cb56f]">
         ← Search for a song
       </Link>
     </main>

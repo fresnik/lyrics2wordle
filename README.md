@@ -1,36 +1,26 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Lyrics2Wordle
 
-## Getting Started
+Find every valid Wordle word hiding in a song's lyrics.
 
-First, run the development server:
+Search a song (title + optional artist), pick the right record, and get a
+shareable page of all valid Wordle words in the lyrics — both whole words
+(solid tiles) and words hidden inside longer words (outlined tiles), e.g.
+CLIPS inside "eclipse".
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Lyrics come from [lrclib.net](https://lrclib.net). The word list is Wordle's
+allowed-guess list (~13k words), bundled server-side.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Develop
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+    yarn install
+    yarn dev        # http://localhost:3000
+    yarn test       # Vitest
+    yarn build      # production build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploy
 
-## Learn More
+Deployed on Vercel; every push to `main` deploys. Song URLs are
+`/song/{lrclib-id}/{artist-track-slug}` — the ID is authoritative, the slug
+is cosmetic and 308-redirects to canonical.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Design spec: `docs/superpowers/specs/2026-08-22-lyrics2wordle-design.md`.

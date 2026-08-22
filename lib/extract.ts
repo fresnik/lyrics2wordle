@@ -17,8 +17,9 @@ export interface Span {
 export interface AnnotatedLine {
   text: string;
   /**
-   * Sorted, non-overlapping, within [0, text.length], and each carrying a
-   * non-empty `words` — consumers (e.g. LyricsPanel) rely on this invariant.
+   * One span per match, sorted by start, within [0, text.length], each
+   * carrying a non-empty `words`. Spans may overlap — run them through
+   * filterAndMergeSpans before display (LyricsPanel expects merged spans).
    */
   spans: Span[];
 }
@@ -28,8 +29,6 @@ export interface ExtractionResult {
   words: WordEntry[];
   lines: AnnotatedLine[];
 }
-
-const APOSTROPHES = new Set(["'", "’", "ʼ"]);
 
 interface Token {
   /** Normalized letters (lowercase ascii). */
@@ -43,12 +42,14 @@ function tokenizeLine(line: string): Token[] {
   let cur: Token | null = null;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    // Apostrophes and combining marks (e.g. an already-decomposed "é" as
-    // e + U+0301) join a token without contributing a letter or breaking it.
-    if (APOSTROPHES.has(ch) || /\p{M}/u.test(ch)) continue;
+    // Combining marks (e.g. an already-decomposed "é" as e + U+0301) join a
+    // token without contributing a letter or breaking it.
+    if (/\p{M}/u.test(ch)) continue;
     const base = ch.normalize("NFD")[0].toLowerCase();
-    // Non-decomposable letters (ø, ß, æ, …) don't reduce to a-z and are
-    // intentionally treated as separators — an accepted limitation.
+    // Apostrophes split tokens ("there's" → "there" + "s"), as does any
+    // other non-letter. Non-decomposable letters (ø, ß, æ, …) don't reduce
+    // to a-z and are intentionally treated as separators — an accepted
+    // limitation.
     if (base.length === 1 && base >= "a" && base <= "z") {
       if (!cur) {
         cur = { norm: "", map: [] };
@@ -63,9 +64,14 @@ function tokenizeLine(line: string): Token[] {
   return tokens;
 }
 
-/** Merges overlapping or adjacent spans for display; each source match is still counted separately. */
-function mergeSpans(spans: Span[]): Span[] {
-  const sorted = [...spans].sort((a, b) => a.start - b.start);
+/**
+ * Prepares raw match spans for display: drops matches for words not in
+ * `visible` (pass null to keep all), then merges overlapping spans into
+ * sorted, non-overlapping ones. The result satisfies LyricsPanel's contract.
+ */
+export function filterAndMergeSpans(spans: Span[], visible: Set<string> | null): Span[] {
+  const kept = visible ? spans.filter((s) => s.words.some((w) => visible.has(w))) : spans;
+  const sorted = [...kept].sort((a, b) => a.start - b.start);
   const merged: Span[] = [];
   for (const s of sorted) {
     const last = merged[merged.length - 1];
@@ -85,6 +91,8 @@ export function extractWordleWords(lyrics: string, wordSet: Set<string>): Extrac
     const spans: Span[] = [];
     for (const tok of tokenizeLine(text)) {
       if (tok.norm.length < 5) continue;
+      // A simple plural ("fields") counts its stem as a whole word, not a substring.
+      const plural = tok.norm.length === 6 && tok.norm[5] === "s";
       for (let i = 0; i + 5 <= tok.norm.length; i++) {
         const cand = tok.norm.slice(i, i + 5);
         if (!wordSet.has(cand)) continue;
@@ -93,12 +101,12 @@ export function extractWordleWords(lyrics: string, wordSet: Set<string>): Extrac
           entry = { word: cand, wholeCount: 0, substringCount: 0 };
           entries.set(cand, entry);
         }
-        if (tok.norm.length === 5) entry.wholeCount++;
+        if (tok.norm.length === 5 || (plural && i === 0)) entry.wholeCount++;
         else entry.substringCount++;
         spans.push({ start: tok.map[i], end: tok.map[i + 4] + 1, words: [cand] });
       }
     }
-    return { text, spans: mergeSpans(spans) };
+    return { text, spans };
   });
   return { words: [...entries.values()], lines };
 }

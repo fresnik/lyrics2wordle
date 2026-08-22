@@ -1,3 +1,5 @@
+import "server-only";
+
 const BASE = "https://lrclib.net/api";
 const USER_AGENT = "Lyrics2Wordle/1.0 (https://github.com/freyr/lyrics-extractor)";
 

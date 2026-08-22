@@ -134,6 +134,10 @@ git commit -m "chore: scaffold Next.js app with Tailwind and Vitest"
 
 - [ ] **Step 1: Build the word list file**
 
+CORRECTION (final review): use cfreshman's wordle-NYT gists (~14,855 merged),
+not the classic 2021 lists — the classic lists contain slurs the NYT
+removed. Discover current raw URLs via the GitHub gists API.
+
 Merge cfreshman's Wordle allowed-guesses and answers gists (guessable = allowed + answers):
 
 ```bash

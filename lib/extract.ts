@@ -91,8 +91,11 @@ export function extractWordleWords(lyrics: string, wordSet: Set<string>): Extrac
     const spans: Span[] = [];
     for (const tok of tokenizeLine(text)) {
       if (tok.norm.length < 5) continue;
-      // A simple plural ("fields") counts its stem as a whole word, not a substring.
-      const plural = tok.norm.length === 6 && tok.norm[5] === "s";
+      // A simple plural ("fields") or past tense ("climbed") counts its
+      // stem as a whole word, not a substring.
+      const inflected =
+        (tok.norm.length === 6 && tok.norm[5] === "s") ||
+        (tok.norm.length === 7 && tok.norm.endsWith("ed"));
       for (let i = 0; i + 5 <= tok.norm.length; i++) {
         const cand = tok.norm.slice(i, i + 5);
         if (!wordSet.has(cand)) continue;
@@ -101,7 +104,7 @@ export function extractWordleWords(lyrics: string, wordSet: Set<string>): Extrac
           entry = { word: cand, wholeCount: 0, substringCount: 0 };
           entries.set(cand, entry);
         }
-        if (tok.norm.length === 5 || (plural && i === 0)) entry.wholeCount++;
+        if (tok.norm.length === 5 || (inflected && i === 0)) entry.wholeCount++;
         else entry.substringCount++;
         spans.push({ start: tok.map[i], end: tok.map[i + 4] + 1, words: [cand] });
       }

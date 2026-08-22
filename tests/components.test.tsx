@@ -28,7 +28,7 @@ describe("WordTiles", () => {
     Object.assign(navigator, { clipboard: { writeText } });
     render(<WordTiles words={words} />);
     await userEvent.click(screen.getByRole("button", { name: "Copy drums" }));
-    expect(writeText).toHaveBeenCalledWith("drums");
+    expect(writeText).toHaveBeenCalledWith("DRUMS");
     expect(screen.getByRole("status")).toHaveTextContent("Copied DRUMS");
   });
 

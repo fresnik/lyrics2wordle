@@ -10,7 +10,7 @@ export default function WordTiles({ words }: { words: WordEntry[] }) {
 
   function handleCopy(word: string) {
     setLastWord(word);
-    void copy(word);
+    void copy(word.toUpperCase());
   }
 
   if (words.length === 0) {

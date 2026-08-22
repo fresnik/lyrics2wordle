@@ -5,7 +5,7 @@ export interface LrclibRecord {
   id: number;
   trackName: string;
   artistName: string;
-  albumName: string;
+  albumName: string | null;
   duration: number;
   instrumental: boolean;
   plainLyrics: string | null;
@@ -16,7 +16,7 @@ export interface SearchResult {
   id: number;
   trackName: string;
   artistName: string;
-  albumName: string;
+  albumName: string | null;
   duration: number;
 }
 
@@ -31,6 +31,7 @@ export async function searchSongs(track: string, artist?: string): Promise<Searc
   const res = await fetch(`${BASE}/search?${params}`, {
     headers: { "User-Agent": USER_AGENT },
     next: { revalidate: 3600 }, // search results: cache 1 hour
+    signal: AbortSignal.timeout(8000), // fail fast well under Vercel's function limit
   });
   if (!res.ok) throw new Error(`lrclib search failed: ${res.status}`);
   const records = (await res.json()) as LrclibRecord[];
@@ -49,6 +50,7 @@ export async function getSongById(id: number): Promise<LrclibRecord | null> {
   const res = await fetch(`${BASE}/get/${id}`, {
     headers: { "User-Agent": USER_AGENT },
     next: { revalidate: 2592000 }, // lyrics records are effectively immutable: 30 days
+    signal: AbortSignal.timeout(8000), // fail fast well under Vercel's function limit
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`lrclib get failed: ${res.status}`);

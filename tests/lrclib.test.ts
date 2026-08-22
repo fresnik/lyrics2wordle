@@ -43,6 +43,29 @@ describe("searchSongs", () => {
     mockFetch(500, {});
     await expect(searchSongs("africa")).rejects.toThrow("lrclib search failed: 500");
   });
+
+  it("rejects when the response body isn't valid JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new Error("bad json");
+        },
+      })
+    );
+    await expect(searchSongs("africa")).rejects.toThrow();
+  });
+
+  it("passes through a null albumName without filtering the record", async () => {
+    const noAlbum = { ...record, id: 4, albumName: null };
+    mockFetch(200, [noAlbum]);
+    const results = await searchSongs("africa");
+    expect(results).toEqual([
+      { id: 4, trackName: "Africa", artistName: "Toto", albumName: null, duration: 295 },
+    ]);
+  });
 });
 
 describe("getSongById", () => {

@@ -34,6 +34,10 @@ jobs:
       - name: Lint
         run: yarn lint
 
+      # LayoutProps etc. are generated into .next/types, absent on a fresh checkout.
+      - name: Generate Next.js route types
+        run: yarn next typegen
+
       - name: Typecheck
         run: yarn tsc --noEmit
 

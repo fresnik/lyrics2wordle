@@ -1,0 +1,10 @@
+# Brainstorming visual-companion sessions
+.superpowers/
+
+# Dependencies / build output (Next.js app, added later)
+node_modules/
+.next/
+out/
+
+# Env files
+.env*.local

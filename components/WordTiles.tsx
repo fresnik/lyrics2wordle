@@ -2,23 +2,27 @@
 
 import { useState } from "react";
 import type { WordEntry } from "@/lib/extract";
+import { useCopyFeedback } from "@/components/useCopyFeedback";
 
 export default function WordTiles({ words }: { words: WordEntry[] }) {
-  const [toast, setToast] = useState<string | null>(null);
+  const { status, copy } = useCopyFeedback();
+  const [lastWord, setLastWord] = useState<string | null>(null);
 
-  async function copy(word: string) {
-    try {
-      await navigator.clipboard.writeText(word);
-    } catch {
-      return;
-    }
-    setToast(`Copied ${word.toUpperCase()}`);
-    window.setTimeout(() => setToast(null), 1500);
+  function handleCopy(word: string) {
+    setLastWord(word);
+    void copy(word);
   }
 
   if (words.length === 0) {
     return <p className="text-lg">No Wordle words in this one — try another song! 🤷</p>;
   }
+
+  const toast =
+    status === "copied" && lastWord
+      ? `Copied ${lastWord.toUpperCase()}`
+      : status === "error"
+        ? "Couldn't copy — try selecting the text"
+        : null;
 
   return (
     <div>
@@ -30,9 +34,9 @@ export default function WordTiles({ words }: { words: WordEntry[] }) {
             <li key={w.word}>
               <button
                 type="button"
-                onClick={() => copy(w.word)}
+                onClick={() => handleCopy(w.word)}
                 title={whole ? "Appears as a word in the lyrics" : "Found inside a longer word"}
-                aria-label={`Copy ${w.word}`}
+                aria-label={whole ? `Copy ${w.word}` : `Copy ${w.word} (found inside a longer word)`}
                 className="flex cursor-pointer items-center gap-1"
               >
                 <span className="flex gap-0.5">

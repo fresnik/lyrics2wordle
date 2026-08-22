@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LyricsPanel from "@/components/LyricsPanel";
+import ShareButton from "@/components/ShareButton";
 import WordTiles from "@/components/WordTiles";
 
 const words = [
@@ -35,6 +36,13 @@ describe("WordTiles", () => {
     render(<WordTiles words={[]} />);
     expect(screen.getByText(/No Wordle words in this one/)).toBeInTheDocument();
   });
+
+  it("announces substring-only tiles distinctly for accessibility", () => {
+    render(<WordTiles words={words} />);
+    expect(
+      screen.getByRole("button", { name: "Copy clips (found inside a longer word)" })
+    ).toBeInTheDocument();
+  });
 });
 
 describe("LyricsPanel", () => {
@@ -50,5 +58,50 @@ describe("LyricsPanel", () => {
     const mark = screen.getByText("drums");
     expect(mark.tagName).toBe("MARK");
     expect(screen.getByText(/I hear the/)).toBeInTheDocument();
+  });
+
+  it("renders multiple marks in a single line", () => {
+    render(
+      <LyricsPanel
+        lines={[
+          {
+            text: "hello world hello",
+            spans: [
+              { start: 0, end: 5 },
+              { start: 12, end: 17 },
+            ],
+          },
+        ]}
+      />
+    );
+    const marks = screen.getAllByText("hello");
+    expect(marks).toHaveLength(2);
+    marks.forEach((m) => expect(m.tagName).toBe("MARK"));
+  });
+});
+
+describe("ShareButton", () => {
+  it("renders the idle label", () => {
+    render(<ShareButton path="/song/1/toto-africa" />);
+    expect(screen.getByRole("button", { name: "Copy share link" })).toBeInTheDocument();
+  });
+
+  it("copies the full URL and shows the copied label", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<ShareButton path="/song/1/toto-africa" />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy share link" }));
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/song/1/toto-africa`);
+    expect(screen.getByRole("button", { name: "Link copied!" })).toBeInTheDocument();
+  });
+
+  it("shows an error label when the clipboard write fails", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<ShareButton path="/song/1/toto-africa" />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy share link" }));
+    expect(screen.getByRole("button", { name: "Couldn't copy" })).toBeInTheDocument();
+    errorSpy.mockRestore();
   });
 });

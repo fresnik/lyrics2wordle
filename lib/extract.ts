@@ -14,6 +14,7 @@ export interface Span {
 
 export interface AnnotatedLine {
   text: string;
+  /** Sorted, non-overlapping, and within [0, text.length] — consumers (e.g. LyricsPanel) rely on this invariant. */
   spans: Span[];
 }
 

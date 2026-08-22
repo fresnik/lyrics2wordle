@@ -44,12 +44,32 @@ describe("extractWordleWords", () => {
     expect(r.words).toEqual([{ word: "stone", wholeCount: 0, substringCount: 1 }]);
   });
 
-  it("only promotes the leading window of a plural, and only for 6-letter tokens", () => {
+  it("counts a 7-letter past tense as a whole match on its 5-letter stem", () => {
+    const r = extractWordleWords("climbed the wall", set("climb"));
+    expect(r.words).toEqual([{ word: "climb", wholeCount: 1, substringCount: 0 }]);
+  });
+
+  it("keeps non-inflected 7-letter containers as substring matches", () => {
+    const r = extractWordleWords("climber", set("climb"));
+    expect(r.words).toEqual([{ word: "climb", wholeCount: 0, substringCount: 1 }]);
+  });
+
+  it("only promotes the leading window of an inflected token", () => {
     // "beasts": "easts" starts at index 1, so it stays a substring even
-    // though the token ends in s; "screams" is 7 letters, so "cream" does too.
-    const r = extractWordleWords("beasts screams", set("easts", "cream"));
+    // though the token ends in s; same for "anted" inside "planted".
+    const r = extractWordleWords("beasts planted", set("easts", "anted"));
     expect(r.words).toEqual([
       { word: "easts", wholeCount: 0, substringCount: 1 },
+      { word: "anted", wholeCount: 0, substringCount: 1 },
+    ]);
+  });
+
+  it("does not promote stems of 7-letter tokens that do not end in ed", () => {
+    // "screams" is 7 letters but ends in "ms", so neither the plural rule
+    // (6 letters + s) nor the past-tense rule (7 letters + ed) applies.
+    const r = extractWordleWords("screams", set("cream", "screa"));
+    expect(r.words).toEqual([
+      { word: "screa", wholeCount: 0, substringCount: 1 },
       { word: "cream", wholeCount: 0, substringCount: 1 },
     ]);
   });

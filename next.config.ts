@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  outputFileTracingIncludes: {
+    "/**": ["./data/wordle-words.txt"],
+  },
 };
 
 export default nextConfig;

@@ -4,7 +4,15 @@ import { useState } from "react";
 import type { WordEntry } from "@/lib/extract";
 import { useCopyFeedback } from "@/components/useCopyFeedback";
 
-export default function WordTiles({ words }: { words: WordEntry[] }) {
+interface WordTilesProps {
+  words: WordEntry[];
+  /** Words to visually highlight (driven by lyric-mark hover). */
+  highlighted?: string[];
+  /** Fires with this tile's word on hover/focus, null on leave/blur. */
+  onHover?: (words: string[] | null) => void;
+}
+
+export default function WordTiles({ words, highlighted = [], onHover }: WordTilesProps) {
   const { status, copy } = useCopyFeedback();
   const [lastWord, setLastWord] = useState<string | null>(null);
 
@@ -35,11 +43,23 @@ export default function WordTiles({ words }: { words: WordEntry[] }) {
               <button
                 type="button"
                 onClick={() => handleCopy(w.word)}
+                onMouseEnter={() => onHover?.([w.word])}
+                onMouseLeave={() => onHover?.(null)}
+                onFocus={() => onHover?.([w.word])}
+                onBlur={() => onHover?.(null)}
+                data-highlighted={highlighted.includes(w.word) || undefined}
                 title={whole ? "Appears as a word in the lyrics" : "Found inside a longer word"}
                 aria-label={whole ? `Copy ${w.word}` : `Copy ${w.word} (found inside a longer word)`}
                 className="flex cursor-pointer items-center gap-1"
               >
-                <span className="flex gap-0.5">
+                <span
+                  className={
+                    "flex gap-0.5 rounded-sm" +
+                    (highlighted.includes(w.word)
+                      ? " ring-2 ring-[#c9b458] ring-offset-2 ring-offset-white dark:ring-offset-gray-950"
+                      : "")
+                  }
+                >
                   {[...w.word].map((ch, i) => (
                     <span
                       key={i}

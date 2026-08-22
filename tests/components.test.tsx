@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LyricsPanel from "@/components/LyricsPanel";
 import ShareButton from "@/components/ShareButton";
+import SongContent from "@/components/SongContent";
 import WordTiles from "@/components/WordTiles";
 
 const words = [
@@ -77,6 +78,45 @@ describe("LyricsPanel", () => {
     const marks = screen.getAllByText("hello");
     expect(marks).toHaveLength(2);
     marks.forEach((m) => expect(m.tagName).toBe("MARK"));
+  });
+});
+
+describe("SongContent hover highlighting", () => {
+  const extraction = {
+    words: [
+      { word: "stone", wholeCount: 0, substringCount: 1 },
+      { word: "tones", wholeCount: 0, substringCount: 1 },
+    ],
+    lines: [{ text: "stones", spans: [{ start: 0, end: 6, words: ["stone", "tones"] }] }],
+  };
+  const stoneName = "Copy stone (found inside a longer word)";
+  const tonesName = "Copy tones (found inside a longer word)";
+
+  it("hovering a tile highlights the lyric marks containing that word", async () => {
+    render(<SongContent extraction={extraction} />);
+    const mark = screen.getByText("stones");
+    expect(mark).not.toHaveAttribute("data-highlighted");
+    await userEvent.hover(screen.getByRole("button", { name: stoneName }));
+    expect(mark).toHaveAttribute("data-highlighted");
+    await userEvent.unhover(screen.getByRole("button", { name: stoneName }));
+    expect(mark).not.toHaveAttribute("data-highlighted");
+  });
+
+  it("hovering a merged lyric mark highlights all involved tiles", async () => {
+    render(<SongContent extraction={extraction} />);
+    await userEvent.hover(screen.getByText("stones"));
+    expect(screen.getByRole("button", { name: stoneName })).toHaveAttribute("data-highlighted");
+    expect(screen.getByRole("button", { name: tonesName })).toHaveAttribute("data-highlighted");
+    await userEvent.unhover(screen.getByText("stones"));
+    expect(screen.getByRole("button", { name: stoneName })).not.toHaveAttribute(
+      "data-highlighted"
+    );
+  });
+
+  it("focusing a tile also highlights the lyric marks (keyboard)", async () => {
+    render(<SongContent extraction={extraction} />);
+    await userEvent.tab(); // first tile button receives focus
+    expect(screen.getByText("stones")).toHaveAttribute("data-highlighted");
   });
 });
 

@@ -2,9 +2,8 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect, unstable_rethrow } from "next/navigation";
-import LyricsPanel from "@/components/LyricsPanel";
 import ShareButton from "@/components/ShareButton";
-import WordTiles from "@/components/WordTiles";
+import SongContent from "@/components/SongContent";
 import { getSongData, type SongPageData } from "@/lib/songData";
 
 interface Props {
@@ -78,24 +77,7 @@ export default async function SongPage({ params }: Props) {
       {!data.hasLyrics ? (
         <p className="text-lg">This record has no lyrics.</p>
       ) : (
-        <div className="grid gap-10 md:grid-cols-2">
-          <section aria-label="Wordle words">
-            <h2 className="mb-4 text-xs font-bold tracking-widest text-gray-500 uppercase">
-              Wordle words
-            </h2>
-            <WordTiles words={data.extraction.words} />
-            <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-              Solid tiles appear as words in the lyrics; outlined tiles are hidden inside longer
-              words. Click a word to copy it.
-            </p>
-          </section>
-          <section aria-label="Lyrics">
-            <h2 className="mb-4 text-xs font-bold tracking-widest text-gray-500 uppercase">
-              Lyrics
-            </h2>
-            <LyricsPanel lines={data.extraction.lines} />
-          </section>
-        </div>
+        <SongContent extraction={data.extraction} />
       )}
     </main>
   );

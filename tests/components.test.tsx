@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import Footer from "@/components/Footer";
 import LyricsPanel from "@/components/LyricsPanel";
 import ShareButton from "@/components/ShareButton";
 import SongContent from "@/components/SongContent";
@@ -208,5 +209,24 @@ describe("ShareButton", () => {
     await userEvent.click(screen.getByRole("button", { name: "Copy share link" }));
     expect(screen.getByRole("button", { name: "Couldn't copy" })).toBeInTheDocument();
     errorSpy.mockRestore();
+  });
+});
+
+describe("Footer", () => {
+  it("links to the Ko-fi page when NEXT_PUBLIC_KOFI_URL is set", () => {
+    vi.stubEnv("NEXT_PUBLIC_KOFI_URL", "https://ko-fi.com/example");
+    render(<Footer />);
+    const link = screen.getByRole("link", { name: /support the hosting costs/i });
+    expect(link).toHaveAttribute("href", "https://ko-fi.com/example");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    vi.unstubAllEnvs();
+  });
+
+  it("renders nothing when NEXT_PUBLIC_KOFI_URL is not set", () => {
+    vi.stubEnv("NEXT_PUBLIC_KOFI_URL", "");
+    const { container } = render(<Footer />);
+    expect(container).toBeEmptyDOMElement();
+    vi.unstubAllEnvs();
   });
 });

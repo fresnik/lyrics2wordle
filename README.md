@@ -19,7 +19,11 @@ allowed-guess list (~13k words), bundled server-side.
 
 ## Deploy
 
-Deployed on Vercel; every push to `main` deploys. Song URLs are
+Deployed on Vercel; every push to `main` deploys.
+
+Optional env var: `NEXT_PUBLIC_KOFI_URL` — when set (e.g. to a Ko-fi page
+URL), a "support the hosting costs" footer link is rendered on every page.
+Unset, no footer is rendered. Song URLs are
 `/song/{lrclib-id}/{artist-track-slug}` — the ID is authoritative, the slug
 is cosmetic and 308-redirects to canonical.
 

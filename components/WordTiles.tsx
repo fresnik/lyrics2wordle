@@ -10,13 +10,28 @@ interface WordTilesProps {
   highlighted?: string[];
   /** Fires with this tile's word on hover/focus, null on leave/blur. */
   onHover?: (words: string[] | null) => void;
+  /** Words already used in this song — shown greyed out. */
+  finished?: string[];
+  /** When provided, clicking a tile also marks it used; clicking a used tile unmarks it instead of copying. */
+  onToggleFinished?: (word: string) => void;
 }
 
-export default function WordTiles({ words, highlighted = [], onHover }: WordTilesProps) {
+export default function WordTiles({
+  words,
+  highlighted = [],
+  onHover,
+  finished = [],
+  onToggleFinished,
+}: WordTilesProps) {
   const { status, copy } = useCopyFeedback();
   const [lastWord, setLastWord] = useState<string | null>(null);
 
-  function handleCopy(word: string) {
+  function handleClick(word: string) {
+    if (onToggleFinished && finished.includes(word)) {
+      onToggleFinished(word);
+      return;
+    }
+    onToggleFinished?.(word);
     setLastWord(word);
     void copy(word.toUpperCase());
   }
@@ -27,7 +42,7 @@ export default function WordTiles({ words, highlighted = [], onHover }: WordTile
 
   const toast =
     status === "copied" && lastWord
-      ? `Copied ${lastWord.toUpperCase()}`
+      ? `Copied ${lastWord.toUpperCase()}${onToggleFinished ? " — marked as used" : ""}`
       : status === "error"
         ? "Couldn't copy — try selecting the text"
         : null;
@@ -38,18 +53,32 @@ export default function WordTiles({ words, highlighted = [], onHover }: WordTile
         {words.map((w) => {
           const whole = w.wholeCount > 0;
           const total = w.wholeCount + w.substringCount;
+          const isFinished = finished.includes(w.word);
           return (
             <li key={w.word}>
               <button
                 type="button"
-                onClick={() => handleCopy(w.word)}
+                onClick={() => handleClick(w.word)}
                 onMouseEnter={() => onHover?.([w.word])}
                 onMouseLeave={() => onHover?.(null)}
                 onFocus={() => onHover?.([w.word])}
                 onBlur={() => onHover?.(null)}
                 data-highlighted={highlighted.includes(w.word) || undefined}
-                title={whole ? "Appears as a word in the lyrics" : "Found inside a longer word"}
-                aria-label={whole ? `Copy ${w.word}` : `Copy ${w.word} (found inside a longer word)`}
+                data-finished={isFinished || undefined}
+                title={
+                  isFinished
+                    ? "Marked as used — click to unmark"
+                    : whole
+                      ? "Appears as a word in the lyrics"
+                      : "Found inside a longer word"
+                }
+                aria-label={
+                  isFinished
+                    ? `Unmark ${w.word}`
+                    : whole
+                      ? `Copy ${w.word}`
+                      : `Copy ${w.word} (found inside a longer word)`
+                }
                 className="flex cursor-pointer items-center gap-1"
               >
                 <span
@@ -65,9 +94,13 @@ export default function WordTiles({ words, highlighted = [], onHover }: WordTile
                       key={i}
                       className={
                         "flex h-8 w-8 items-center justify-center rounded-sm text-lg font-bold uppercase " +
-                        (whole
-                          ? "bg-[#6aaa64] text-white dark:bg-[#538d4e]"
-                          : "border-2 border-[#6aaa64] text-[#6aaa64] dark:border-[#538d4e] dark:text-[#7cb56f]")
+                        (isFinished
+                          ? whole
+                            ? "bg-gray-300 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                            : "border-2 border-gray-300 text-gray-400 dark:border-gray-600 dark:text-gray-500"
+                          : whole
+                            ? "bg-[#6aaa64] text-white dark:bg-[#538d4e]"
+                            : "border-2 border-[#6aaa64] text-[#6aaa64] dark:border-[#538d4e] dark:text-[#7cb56f]")
                       }
                     >
                       {ch}

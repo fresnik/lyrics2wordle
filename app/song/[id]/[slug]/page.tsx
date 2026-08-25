@@ -77,7 +77,7 @@ export default async function SongPage({ params }: Props) {
       {!data.hasLyrics ? (
         <p className="text-lg">This record has no lyrics.</p>
       ) : (
-        <SongContent extraction={data.extraction} />
+        <SongContent songId={data.id} extraction={data.extraction} />
       )}
     </main>
   );

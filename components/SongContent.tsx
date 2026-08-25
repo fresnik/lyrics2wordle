@@ -4,6 +4,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { filterAndMergeSpans, type ExtractionResult } from "@/lib/extract";
 import LyricsPanel from "@/components/LyricsPanel";
 import WordTiles from "@/components/WordTiles";
+import { useFinishedWords } from "@/components/useFinishedWords";
 
 const SUBSTRINGS_KEY = "lyrics2wordle:include-substring-words";
 
@@ -40,9 +41,16 @@ function writePreference(next: boolean) {
 }
 
 /** Client wrapper for the song page's two panels; owns the shared hover-highlight state. */
-export default function SongContent({ extraction }: { extraction: ExtractionResult }) {
+export default function SongContent({
+  songId,
+  extraction,
+}: {
+  songId: number;
+  extraction: ExtractionResult;
+}) {
   const [highlighted, setHighlighted] = useState<string[]>([]);
   const includeSubstrings = useSyncExternalStore(subscribeToPreference, readPreference, () => true);
+  const { finished, toggle, markAll, reset } = useFinishedWords(songId);
 
   function handleHover(words: string[] | null) {
     setHighlighted(words ?? []);
@@ -79,10 +87,38 @@ export default function SongContent({ extraction }: { extraction: ExtractionResu
             Include words hidden inside longer words
           </label>
         )}
-        <WordTiles words={words} highlighted={highlighted} onHover={handleHover} />
+        <WordTiles
+          words={words}
+          highlighted={highlighted}
+          onHover={handleHover}
+          finished={finished}
+          onToggleFinished={toggle}
+        />
+        {words.length > 0 && (
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            <button
+              type="button"
+              onClick={() => markAll(words.map((w) => w.word))}
+              disabled={words.every((w) => finished.includes(w.word))}
+              className="cursor-pointer underline-offset-2 hover:underline disabled:cursor-default disabled:opacity-40 disabled:hover:no-underline"
+            >
+              mark all used
+            </button>
+            <span aria-hidden="true"> · </span>
+            <button
+              type="button"
+              onClick={reset}
+              disabled={finished.length === 0}
+              className="cursor-pointer underline-offset-2 hover:underline disabled:cursor-default disabled:opacity-40 disabled:hover:no-underline"
+            >
+              reset
+            </button>
+          </p>
+        )}
         <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
           Solid tiles appear as words in the lyrics; outlined tiles are hidden inside longer
-          words. Click a word to copy it — hover one to spot it in the lyrics.
+          words. Click a word to copy it and mark it as used — click a greyed word to unmark
+          it. Hover a word to spot it in the lyrics.
         </p>
       </section>
       <section aria-label="Lyrics">

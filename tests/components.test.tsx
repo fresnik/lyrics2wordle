@@ -104,7 +104,7 @@ const tonesName = "Copy tones (found inside a longer word)";
 
 describe("SongContent hover highlighting", () => {
   it("hovering a tile highlights the lyric marks containing that word", async () => {
-    render(<SongContent extraction={stonesExtraction} />);
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
     const mark = screen.getByText("stones");
     expect(mark).not.toHaveAttribute("data-highlighted");
     await userEvent.hover(screen.getByRole("button", { name: stoneName }));
@@ -114,7 +114,7 @@ describe("SongContent hover highlighting", () => {
   });
 
   it("hovering a merged lyric mark highlights all involved tiles", async () => {
-    render(<SongContent extraction={stonesExtraction} />);
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
     await userEvent.hover(screen.getByText("stones"));
     expect(screen.getByRole("button", { name: stoneName })).toHaveAttribute("data-highlighted");
     expect(screen.getByRole("button", { name: tonesName })).toHaveAttribute("data-highlighted");
@@ -125,7 +125,7 @@ describe("SongContent hover highlighting", () => {
   });
 
   it("focusing a tile also highlights the lyric marks (keyboard)", async () => {
-    render(<SongContent extraction={stonesExtraction} />);
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
     await userEvent.tab(); // substring toggle
     await userEvent.tab(); // first tile button receives focus
     expect(screen.getByText("stones")).toHaveAttribute("data-highlighted");
@@ -140,14 +140,14 @@ describe("SongContent substring toggle", () => {
   });
 
   it("includes substring-only words by default", () => {
-    render(<SongContent extraction={stonesExtraction} />);
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
     expect(screen.getByRole("checkbox", { name: toggleName })).toBeChecked();
     expect(screen.getByRole("button", { name: tonesName })).toBeInTheDocument();
     expect(screen.getByText("stones")).toBeInTheDocument();
   });
 
   it("unchecking hides substring-only tiles and shrinks lyric marks", async () => {
-    render(<SongContent extraction={stonesExtraction} />);
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
     await userEvent.click(screen.getByRole("checkbox", { name: toggleName }));
     expect(screen.queryByRole("button", { name: tonesName })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: stoneName })).toBeInTheDocument();
@@ -157,12 +157,12 @@ describe("SongContent substring toggle", () => {
   });
 
   it("persists the choice to localStorage and restores it on mount", async () => {
-    render(<SongContent extraction={stonesExtraction} />);
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
     await userEvent.click(screen.getByRole("checkbox", { name: toggleName }));
     expect(localStorage.getItem("lyrics2wordle:include-substring-words")).toBe("false");
     cleanup();
 
-    render(<SongContent extraction={stonesExtraction} />);
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
     await waitFor(() =>
       expect(screen.getByRole("checkbox", { name: toggleName })).not.toBeChecked()
     );
@@ -176,6 +176,7 @@ describe("SongContent substring toggle", () => {
   it("omits the toggle when every word appears whole", () => {
     render(
       <SongContent
+        songId={1}
         extraction={{
           words: [{ word: "hello", wholeCount: 1, substringCount: 0 }],
           lines: [{ text: "hello", spans: [{ start: 0, end: 5, words: ["hello"] }] }],
@@ -183,6 +184,59 @@ describe("SongContent substring toggle", () => {
       />
     );
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+});
+
+describe("SongContent finished words", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("clicking a tile copies the word and marks it as used", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
+    await userEvent.click(screen.getByRole("button", { name: stoneName }));
+    expect(writeText).toHaveBeenCalledWith("STONE");
+    expect(screen.getByRole("status")).toHaveTextContent("Copied STONE — marked as used");
+    expect(screen.getByRole("button", { name: "Unmark stone" })).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("lyrics2wordle:finished:1")!)).toEqual(["stone"]);
+  });
+
+  it("clicking a used tile unmarks it without copying again", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
+    await userEvent.click(screen.getByRole("button", { name: stoneName }));
+    await userEvent.click(screen.getByRole("button", { name: "Unmark stone" }));
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: stoneName })).toBeInTheDocument();
+    expect(localStorage.getItem("lyrics2wordle:finished:1")).toBeNull();
+  });
+
+  it("restores used words on mount, scoped to the song", async () => {
+    localStorage.setItem("lyrics2wordle:finished:1", JSON.stringify(["stone"]));
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Unmark stone" })).toBeInTheDocument()
+    );
+    cleanup();
+
+    // the same word is untouched in a different song
+    render(<SongContent songId={2} extraction={stonesExtraction} />);
+    expect(screen.getByRole("button", { name: stoneName })).toBeInTheDocument();
+  });
+
+  it("marks all visible words as used and resets them", async () => {
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
+    await userEvent.click(screen.getByRole("button", { name: "mark all used" }));
+    expect(screen.getByRole("button", { name: "Unmark stone" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unmark tones" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "reset" }));
+    expect(screen.getByRole("button", { name: stoneName })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: tonesName })).toBeInTheDocument();
+    expect(localStorage.getItem("lyrics2wordle:finished:1")).toBeNull();
   });
 });
 

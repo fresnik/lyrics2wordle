@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractWordleWords, filterAndMergeSpans } from "@/lib/extract";
+import { extractWordleWords, filterAndMergeSpans, lineWithWordUppercased } from "@/lib/extract";
 
 const set = (...words: string[]) => new Set(words);
 
@@ -168,5 +168,38 @@ describe("filterAndMergeSpans", () => {
       { start: 0, end: 5, words: ["stone"] },
       { start: 1, end: 6, words: ["tones"] },
     ]);
+  });
+});
+
+describe("lineWithWordUppercased", () => {
+  it("returns the first line containing the word, with the match uppercased", () => {
+    const { lines } = extractWordleWords("no match here\nI hear the drums", set("drums"));
+    expect(lineWithWordUppercased(lines, "drums")).toBe("I hear the DRUMS");
+  });
+
+  it("uppercases every match of the word within the line", () => {
+    const { lines } = extractWordleWords("hello world hello", set("hello"));
+    expect(lineWithWordUppercased(lines, "hello")).toBe("HELLO world HELLO");
+  });
+
+  it("uppercases only the matched window of a substring match", () => {
+    const { lines } = extractWordleWords("stones", set("stone", "tones"));
+    expect(lineWithWordUppercased(lines, "tones")).toBe("sTONES");
+    expect(lineWithWordUppercased(lines, "stone")).toBe("STONEs");
+  });
+
+  it("leaves other words' matches on the line untouched", () => {
+    const { lines } = extractWordleWords("hello world", set("hello", "world"));
+    expect(lineWithWordUppercased(lines, "world")).toBe("hello WORLD");
+  });
+
+  it("does not duplicate text when same-word spans overlap", () => {
+    const { lines } = extractWordleWords("aaaaaaa", set("aaaaa"));
+    expect(lineWithWordUppercased(lines, "aaaaa")).toBe("AAAAAAA");
+  });
+
+  it("returns null when the word matches no line", () => {
+    const { lines } = extractWordleWords("I hear the drums", set("drums"));
+    expect(lineWithWordUppercased(lines, "hello")).toBeNull();
   });
 });

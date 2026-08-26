@@ -54,7 +54,11 @@ export default async function SongPage({ params }: Props) {
   // (same assumption behind the 30-day fetch revalidate in lib/lrclib.ts).
   if (slug !== data.slug) permanentRedirect(`/song/${data.id}/${data.slug}`);
 
-  const n = data.extraction.words.length;
+  const total = data.extraction.words.length;
+  const whole = data.extraction.words.filter((w) => w.wholeCount > 0).length;
+  const wordCount =
+    `${whole} Wordle ${whole === 1 ? "word" : "words"}` +
+    (whole === total ? "" : ` (${total} including words inside longer words)`);
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <header className="mb-8">
@@ -67,7 +71,7 @@ export default async function SongPage({ params }: Props) {
         <p className="text-gray-600 dark:text-gray-400">
           {data.artistName}
           {data.albumName ? ` · ${data.albumName}` : ""} ·{" "}
-          {data.hasLyrics ? `${n} Wordle ${n === 1 ? "word" : "words"}` : "No lyrics on record"}
+          {data.hasLyrics ? wordCount : "No lyrics on record"}
         </p>
         <div className="mt-3">
           <ShareButton path={`/song/${data.id}/${data.slug}`} />

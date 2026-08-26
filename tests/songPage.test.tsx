@@ -19,6 +19,21 @@ describe("SongPage", () => {
     expect(mark).toBeInTheDocument();
   });
 
+  it("subtitles with the whole-word count plus a total including substring words", async () => {
+    mockFetch(200, { ...record, plainLyrics: "I hear the drums echoing tonight" });
+    render(await SongPage({ params }));
+    expect(
+      screen.getByText(/\d+ Wordle words? \(\d+ including words inside longer words\)/)
+    ).toBeInTheDocument();
+  });
+
+  it("omits the substring total when every word appears whole in the lyrics", async () => {
+    mockFetch(200, { ...record, plainLyrics: "I hear the drums" });
+    render(await SongPage({ params }));
+    expect(screen.getByText(/1 Wordle word$/)).toBeInTheDocument();
+    expect(screen.queryByText(/including words inside longer words/)).not.toBeInTheDocument();
+  });
+
   it("shows the no-lyrics state for instrumental records", async () => {
     mockFetch(200, { ...record, instrumental: true, plainLyrics: null });
     render(await SongPage({ params }));

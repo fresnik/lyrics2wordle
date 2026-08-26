@@ -85,6 +85,29 @@ export function filterAndMergeSpans(spans: Span[], visible: Set<string> | null):
   return merged;
 }
 
+/**
+ * The first lyric line containing `word`, with every match of that word
+ * uppercased in place (only the matched window, so a substring match inside a
+ * longer word uppercases just those letters). Returns null when the word
+ * matches no line.
+ */
+export function lineWithWordUppercased(lines: AnnotatedLine[], word: string): string | null {
+  for (const line of lines) {
+    // Merging first also unions overlapping same-word spans (e.g. repeated
+    // letters), so no range is emitted twice.
+    const spans = filterAndMergeSpans(line.spans, new Set([word]));
+    if (spans.length === 0) continue;
+    let out = "";
+    let pos = 0;
+    for (const s of spans) {
+      out += line.text.slice(pos, s.start) + line.text.slice(s.start, s.end).toUpperCase();
+      pos = s.end;
+    }
+    return out + line.text.slice(pos);
+  }
+  return null;
+}
+
 export function extractWordleWords(lyrics: string, wordSet: Set<string>): ExtractionResult {
   const entries = new Map<string, WordEntry>(); // insertion order = first appearance
   const lines: AnnotatedLine[] = lyrics.split(/\r?\n/).map((text) => {

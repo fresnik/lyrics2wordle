@@ -45,6 +45,15 @@ describe("WordTiles", () => {
       screen.getByRole("button", { name: "Copy clips (found inside a longer word)" })
     ).toBeInTheDocument();
   });
+
+  it("copies the text provided by copyTextFor and shows it in the toast", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<WordTiles words={words} copyTextFor={(w) => `I hear the ${w.toUpperCase()}`} />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy drums" }));
+    expect(writeText).toHaveBeenCalledWith("I hear the DRUMS");
+    expect(screen.getByRole("status")).toHaveTextContent("Copied I hear the DRUMS");
+  });
 });
 
 describe("LyricsPanel", () => {
@@ -127,6 +136,7 @@ describe("SongContent hover highlighting", () => {
   it("focusing a tile also highlights the lyric marks (keyboard)", async () => {
     render(<SongContent songId={1} extraction={stonesExtraction} />);
     await userEvent.tab(); // substring toggle
+    await userEvent.tab(); // copy-whole-line toggle
     await userEvent.tab(); // first tile button receives focus
     expect(screen.getByText("stones")).toHaveAttribute("data-highlighted");
   });
@@ -183,7 +193,80 @@ describe("SongContent substring toggle", () => {
         }}
       />
     );
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: toggleName })).not.toBeInTheDocument();
+  });
+});
+
+describe("SongContent copy whole line", () => {
+  const copyName = "Copy the whole line instead of just the word";
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  function mockClipboard() {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    return writeText;
+  }
+
+  it("copies just the word by default", async () => {
+    const writeText = mockClipboard();
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
+    expect(screen.getByRole("checkbox", { name: copyName })).not.toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: stoneName }));
+    expect(writeText).toHaveBeenCalledWith("STONE");
+  });
+
+  it("copies the whole line with the clicked word uppercased when enabled", async () => {
+    const writeText = mockClipboard();
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: copyName }));
+    await userEvent.click(screen.getByRole("button", { name: stoneName }));
+    expect(writeText).toHaveBeenCalledWith("STONEs");
+    expect(screen.getByRole("status")).toHaveTextContent("Copied STONEs — marked as used");
+  });
+
+  it("uppercases only the matched window for substring-only words", async () => {
+    const writeText = mockClipboard();
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: copyName }));
+    await userEvent.click(screen.getByRole("button", { name: tonesName }));
+    expect(writeText).toHaveBeenCalledWith("sTONES");
+  });
+
+  it("copies the first line containing the word, skipping earlier lines", async () => {
+    const writeText = mockClipboard();
+    render(
+      <SongContent
+        songId={1}
+        extraction={{
+          words: [{ word: "drums", wholeCount: 1, substringCount: 0 }],
+          lines: [
+            { text: "no match here", spans: [] },
+            { text: "I hear the drums", spans: [{ start: 11, end: 16, words: ["drums"] }] },
+          ],
+        }}
+      />
+    );
+    await userEvent.click(screen.getByRole("checkbox", { name: copyName }));
+    await userEvent.click(screen.getByRole("button", { name: "Copy drums" }));
+    expect(writeText).toHaveBeenCalledWith("I hear the DRUMS");
+  });
+
+  it("persists the choice to localStorage and restores it on mount", async () => {
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: copyName }));
+    expect(localStorage.getItem("lyrics2wordle:copy-whole-line")).toBe("true");
+    cleanup();
+
+    render(<SongContent songId={1} extraction={stonesExtraction} />);
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: copyName })).toBeChecked());
+  });
+
+  it("omits the checkbox when the song has no Wordle words", () => {
+    render(<SongContent songId={1} extraction={{ words: [], lines: [] }} />);
+    expect(screen.queryByRole("checkbox", { name: copyName })).not.toBeInTheDocument();
   });
 });
 

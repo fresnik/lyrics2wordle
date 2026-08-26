@@ -14,6 +14,8 @@ interface WordTilesProps {
   finished?: string[];
   /** When provided, clicking a tile also marks it used; clicking a used tile unmarks it instead of copying. */
   onToggleFinished?: (word: string) => void;
+  /** Overrides what a click copies (e.g. the whole lyric line); defaults to the uppercased word. */
+  copyTextFor?: (word: string) => string;
 }
 
 export default function WordTiles({
@@ -22,9 +24,10 @@ export default function WordTiles({
   onHover,
   finished = [],
   onToggleFinished,
+  copyTextFor,
 }: WordTilesProps) {
   const { status, copy } = useCopyFeedback();
-  const [lastWord, setLastWord] = useState<string | null>(null);
+  const [lastCopied, setLastCopied] = useState<string | null>(null);
 
   function handleClick(word: string) {
     if (onToggleFinished && finished.includes(word)) {
@@ -32,8 +35,9 @@ export default function WordTiles({
       return;
     }
     onToggleFinished?.(word);
-    setLastWord(word);
-    void copy(word.toUpperCase());
+    const text = copyTextFor ? copyTextFor(word) : word.toUpperCase();
+    setLastCopied(text);
+    void copy(text);
   }
 
   if (words.length === 0) {
@@ -41,8 +45,8 @@ export default function WordTiles({
   }
 
   const toast =
-    status === "copied" && lastWord
-      ? `Copied ${lastWord.toUpperCase()}${onToggleFinished ? " — marked as used" : ""}`
+    status === "copied" && lastCopied
+      ? `Copied ${lastCopied}${onToggleFinished ? " — marked as used" : ""}`
       : status === "error"
         ? "Couldn't copy — try selecting the text"
         : null;
@@ -117,7 +121,7 @@ export default function WordTiles({
       {toast && (
         <div
           role="status"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-md bg-gray-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-gray-100 dark:text-gray-900"
+          className="fixed bottom-6 left-1/2 max-w-[calc(100vw-3rem)] -translate-x-1/2 truncate rounded-md bg-gray-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-gray-100 dark:text-gray-900"
         >
           {toast}
         </div>

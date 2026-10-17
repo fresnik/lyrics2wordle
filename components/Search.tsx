@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { canonicalSlug } from "@/lib/slug";
 import type { SearchResult } from "@/lib/lrclib";
 
@@ -14,23 +15,51 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export default function Search() {
-  const [track, setTrack] = useState("");
-  const [artist, setArtist] = useState("");
+// The query string shared by the page URL and the /api/search call.
+function toQuery(track: string, artist: string): string {
+  const params = new URLSearchParams({ track: track.trim() });
+  if (artist.trim()) params.set("artist", artist.trim());
+  return params.toString();
+}
+
+type Props = {
+  // The query from the page URL, which is the source of truth for the search.
+  initialTrack?: string;
+  initialArtist?: string;
+};
+
+export default function Search({ initialTrack = "", initialArtist = "" }: Props) {
+  const router = useRouter();
+  const [track, setTrack] = useState(initialTrack);
+  const [artist, setArtist] = useState(initialArtist);
   const [status, setStatus] = useState<Status>("idle");
   const [results, setResults] = useState<SearchResult[]>([]);
   // Guards against overlapping searches: if a newer search starts before an
   // older one resolves, the older one's response (and any error) is ignored.
   const requestRef = useRef(0);
+  // The query of the latest search, so the URL catching up with a submitted
+  // search doesn't fire the same search twice.
+  const lastQueryRef = useRef<string | null>(null);
+  const urlQuery = initialTrack.trim() ? toQuery(initialTrack, initialArtist) : null;
 
-  async function doSearch() {
-    if (!track.trim() || status === "loading") return;
+  // When the URL changes from outside the form (back/forward), show its query.
+  const [prevUrlQuery, setPrevUrlQuery] = useState(urlQuery);
+  if (urlQuery !== prevUrlQuery) {
+    setPrevUrlQuery(urlQuery);
+    setTrack(initialTrack);
+    setArtist(initialArtist);
+    if (urlQuery === null) {
+      setStatus("idle");
+      setResults([]);
+    }
+  }
+
+  async function runSearch(query: string) {
     const myRequest = ++requestRef.current;
+    lastQueryRef.current = query;
     setStatus("loading");
     try {
-      const params = new URLSearchParams({ track: track.trim() });
-      if (artist.trim()) params.set("artist", artist.trim());
-      const res = await fetch(`/api/search?${params}`);
+      const res = await fetch(`/api/search?${query}`);
       if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
       if (myRequest !== requestRef.current) return;
@@ -41,6 +70,25 @@ export default function Search() {
       setStatus("error");
     }
   }
+
+  function doSearch() {
+    if (!track.trim() || status === "loading") return;
+    const query = toQuery(track, artist);
+    runSearch(query);
+    if (query !== urlQuery) router.push(`/?${query}`, { scroll: false });
+  }
+
+  // Search whatever the URL holds: on load, and on back/forward navigation.
+  useEffect(() => {
+    if (urlQuery === null) {
+      // Drop any in-flight response for the query the user navigated away from.
+      requestRef.current++;
+      lastQueryRef.current = null;
+      return;
+    }
+    if (urlQuery === lastQueryRef.current) return;
+    runSearch(urlQuery);
+  }, [urlQuery]);
 
   const inputClass =
     "rounded-md border border-gray-300 bg-white px-3 py-2 outline-none focus:border-[#6aaa64] focus:ring-2 focus:ring-[#6aaa64]/30 dark:border-gray-700 dark:bg-gray-950";
@@ -71,6 +119,7 @@ export default function Search() {
           onChange={(e) => setTrack(e.target.value)}
           placeholder="Song title"
           aria-label="Song title"
+          autoComplete="off"
           required
           className={inputClass}
         />
@@ -79,6 +128,7 @@ export default function Search() {
           onChange={(e) => setArtist(e.target.value)}
           placeholder="Artist (optional)"
           aria-label="Artist"
+          autoComplete="off"
           className={inputClass}
         />
         <button

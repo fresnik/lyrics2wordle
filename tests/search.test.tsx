@@ -1,9 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Search from "@/components/Search";
+import HomePage from "@/app/page";
 
-afterEach(() => vi.unstubAllGlobals());
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  push.mockReset();
+});
 
 function mockSearchApi(status: number, body: unknown) {
   const fn = vi.fn().mockResolvedValue({ ok: status < 400, status, json: async () => body });
@@ -76,5 +83,92 @@ describe("Search", () => {
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/Search failed/);
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("writes the query to the URL on submit", async () => {
+    mockSearchApi(200, results);
+    render(<Search />);
+    await userEvent.type(screen.getByLabelText("Song title"), " africa ");
+    await userEvent.type(screen.getByLabelText("Artist"), "toto");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(push).toHaveBeenCalledWith("/?track=africa&artist=toto", { scroll: false });
+    expect(await screen.findByRole("link")).toBeInTheDocument();
+  });
+
+  it("omits an empty artist from the URL", async () => {
+    mockSearchApi(200, results);
+    render(<Search />);
+    await userEvent.type(screen.getByLabelText("Song title"), "africa");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(push).toHaveBeenCalledWith("/?track=africa", { scroll: false });
+  });
+
+  it("prefills the fields from the URL and searches on load", async () => {
+    const fn = mockSearchApi(200, results);
+    render(<Search initialTrack="africa" initialArtist="toto" />);
+    expect(screen.getByLabelText("Song title")).toHaveValue("africa");
+    expect(screen.getByLabelText("Artist")).toHaveValue("toto");
+    expect(await screen.findByRole("link")).toHaveAttribute("href", "/song/1/toto-africa");
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(fn.mock.calls[0][0]).toBe("/api/search?track=africa&artist=toto");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("searches again without pushing when the query matches the URL", async () => {
+    const fn = mockSearchApi(200, results);
+    render(<Search initialTrack="africa" />);
+    await screen.findByRole("link");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(fn).toHaveBeenCalledTimes(2));
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("does not search again when the URL catches up with a submitted query", async () => {
+    const fn = mockSearchApi(200, results);
+    const { rerender } = render(<Search />);
+    await userEvent.type(screen.getByLabelText("Song title"), "africa");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByRole("link");
+    rerender(<Search initialTrack="africa" />);
+    await screen.findByRole("link");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows the URL on back/forward navigation", async () => {
+    const fn = mockSearchApi(200, results);
+    const { rerender } = render(<Search initialTrack="africa" initialArtist="toto" />);
+    await screen.findByRole("link");
+
+    rerender(<Search initialTrack="rosanna" />);
+    expect(screen.getByLabelText("Song title")).toHaveValue("rosanna");
+    expect(screen.getByLabelText("Artist")).toHaveValue("");
+    await waitFor(() => expect(fn).toHaveBeenCalledTimes(2));
+    expect(fn.mock.calls[1][0]).toBe("/api/search?track=rosanna");
+
+    rerender(<Search />);
+    expect(screen.getByLabelText("Song title")).toHaveValue("");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it("turns off browser form restore, so restored text can't drift from state", () => {
+    render(<Search />);
+    expect(screen.getByLabelText("Song title")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText("Artist")).toHaveAttribute("autocomplete", "off");
+  });
+});
+
+describe("HomePage", () => {
+  it("passes the URL query to the search form", async () => {
+    mockSearchApi(200, results);
+    render(
+      await HomePage({
+        params: Promise.resolve({}),
+        searchParams: Promise.resolve({ track: "africa", artist: ["toto", "ignored"] }),
+      })
+    );
+    expect(screen.getByLabelText("Song title")).toHaveValue("africa");
+    expect(screen.getByLabelText("Artist")).toHaveValue("toto");
+    await screen.findByRole("link");
   });
 });

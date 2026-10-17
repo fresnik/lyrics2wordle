@@ -26,5 +26,7 @@ URL), a "support the hosting costs" footer link is rendered on every page.
 Unset, no footer is rendered. Song URLs are
 `/song/{lrclib-id}/{artist-track-slug}` — the ID is authoritative, the slug
 is cosmetic and 308-redirects to canonical.
+Searches live in the home page URL (`/?track=…&artist=…`), so a reload,
+back/forward, or a shared link reruns the same search.
 
 Design spec: `docs/superpowers/specs/2026-08-22-lyrics2wordle-design.md`.

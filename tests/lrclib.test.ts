@@ -5,7 +5,26 @@ import { mockFetch, record } from "./helpers";
 const instrumental = { ...record, id: 2, instrumental: true, plainLyrics: null };
 const blankLyrics = { ...record, id: 3, plainLyrics: "  " };
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+function response(status: number, body: unknown, headers: Record<string, string> = {}) {
+  return { ok: status < 400, status, headers: new Headers(headers), json: async () => body };
+}
+
+// Resolves each queued response, or rejects with each queued error, in order.
+// (Checked via "status" since jsdom's DOMException isn't an Error instance.)
+function mockFetchSequence(...steps: Array<ReturnType<typeof response> | Error | DOMException>) {
+  const fn = vi.fn();
+  for (const step of steps) {
+    if ("status" in step) fn.mockResolvedValueOnce(step);
+    else fn.mockRejectedValueOnce(step);
+  }
+  vi.stubGlobal("fetch", fn);
+  return fn;
+}
 
 describe("searchSongs", () => {
   it("uses track_name/artist_name when artist is given", async () => {
@@ -80,7 +99,69 @@ describe("getSongById", () => {
   });
 
   it("throws on other errors", async () => {
-    mockFetch(503, {});
-    await expect(getSongById(1)).rejects.toThrow("lrclib get failed: 503");
+    mockFetch(500, {});
+    await expect(getSongById(1)).rejects.toThrow("lrclib get failed: 500");
+  });
+});
+
+describe("retries", () => {
+  it("retries a 503 and returns the eventual success", async () => {
+    vi.useFakeTimers();
+    const fn = mockFetchSequence(response(503, {}), response(503, {}), response(200, record));
+    const result = getSongById(1);
+    await vi.runAllTimersAsync();
+    expect(await result).toEqual(record);
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("gives up after two retries", async () => {
+    vi.useFakeTimers();
+    const fn = mockFetchSequence(response(503, {}), response(503, {}), response(503, {}));
+    const result = expect(getSongById(1)).rejects.toThrow("lrclib get failed: 503");
+    await vi.runAllTimersAsync();
+    await result;
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("waits for Retry-After on a 429", async () => {
+    vi.useFakeTimers();
+    const fn = mockFetchSequence(response(429, {}, { "retry-after": "2" }), response(200, []));
+    const result = searchSongs("africa");
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(fn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(await result).toEqual([]);
+  });
+
+  it("caps a long Retry-After", async () => {
+    vi.useFakeTimers();
+    const fn = mockFetchSequence(response(429, {}, { "retry-after": "60" }), response(200, []));
+    const result = searchSongs("africa");
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(fn).toHaveBeenCalledTimes(2);
+    await result;
+  });
+
+  it("retries network errors", async () => {
+    vi.useFakeTimers();
+    const fn = mockFetchSequence(new TypeError("fetch failed"), response(200, record));
+    const result = getSongById(1);
+    await vi.runAllTimersAsync();
+    expect(await result).toEqual(record);
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry timeouts", async () => {
+    const timeout = new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    const fn = mockFetchSequence(timeout);
+    await expect(getSongById(1)).rejects.toBe(timeout);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([404, 400, 500])("does not retry a %i", async (status) => {
+    const fn = mockFetchSequence(response(status, {}));
+    await getSongById(1).catch(() => {});
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 });

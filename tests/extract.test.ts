@@ -29,6 +29,21 @@ describe("extractWordleWords", () => {
     expect(r.words.map((w) => w.word)).toEqual(["world", "hello"]);
   });
 
+  it("orders a word by its first whole occurrence, not an earlier substring one", () => {
+    const r = extractWordleWords("eclipse\nhello\nclips", set("clips", "hello"));
+    expect(r.words.map((w) => w.word)).toEqual(["hello", "clips"]);
+  });
+
+  it("orders a whole occurrence by its position within the line", () => {
+    const r = extractWordleWords("eclipse hello clips", set("clips", "hello"));
+    expect(r.words.map((w) => w.word)).toEqual(["hello", "clips"]);
+  });
+
+  it("orders substring-only words by their first occurrence among whole words", () => {
+    const r = extractWordleWords("eclipse\nhello\nclips stoned", set("clips", "hello", "stone"));
+    expect(r.words.map((w) => w.word)).toEqual(["hello", "clips", "stone"]);
+  });
+
   it("splits on straight and curly apostrophes so contractions match their stem", () => {
     const r = extractWordleWords("there's where’s", set("there", "wheres", "heres", "theres"));
     expect(r.words).toEqual([{ word: "there", wholeCount: 1, substringCount: 0 }]);
@@ -98,8 +113,8 @@ describe("extractWordleWords", () => {
     const r = extractWordleWords("hello🎵world", set("hello", "world"));
     expect(r.words.map((w) => w.word)).toEqual(["hello", "world"]);
     expect(r.lines[0].spans).toEqual([
-      { start: 0, end: 5, words: ["hello"] },
-      { start: 7, end: 12, words: ["world"] },
+      { start: 0, end: 5, words: ["hello"], whole: true },
+      { start: 7, end: 12, words: ["world"], whole: true },
     ]);
   });
 
@@ -107,7 +122,7 @@ describe("extractWordleWords", () => {
     // "go there's go": the stem "there" spans original chars 3..7,
     // excluding the apostrophe and trailing s.
     const r = extractWordleWords("go there's go", set("there"));
-    expect(r.lines[0].spans).toEqual([{ start: 3, end: 8, words: ["there"] }]);
+    expect(r.lines[0].spans).toEqual([{ start: 3, end: 8, words: ["there"], whole: true }]);
   });
 
   it("emits one raw span per match and counts each match", () => {
@@ -117,23 +132,23 @@ describe("extractWordleWords", () => {
       { word: "tones", wholeCount: 0, substringCount: 1 },
     ]);
     expect(r.lines[0].spans).toEqual([
-      { start: 0, end: 5, words: ["stone"] },
-      { start: 1, end: 6, words: ["tones"] },
+      { start: 0, end: 5, words: ["stone"], whole: true },
+      { start: 1, end: 6, words: ["tones"], whole: false },
     ]);
   });
 
   it("does not duplicate a word repeated in separate spans on one line", () => {
     const r = extractWordleWords("hello hello", set("hello"));
     expect(r.lines[0].spans).toEqual([
-      { start: 0, end: 5, words: ["hello"] },
-      { start: 6, end: 11, words: ["hello"] },
+      { start: 0, end: 5, words: ["hello"], whole: true },
+      { start: 6, end: 11, words: ["hello"], whole: true },
     ]);
   });
 
   it("returns one annotated line per lyrics line, including empty ones", () => {
     const r = extractWordleWords("hello\n\nworld", set("hello"));
     expect(r.lines).toHaveLength(3);
-    expect(r.lines[0].spans).toEqual([{ start: 0, end: 5, words: ["hello"] }]);
+    expect(r.lines[0].spans).toEqual([{ start: 0, end: 5, words: ["hello"], whole: true }]);
     expect(r.lines[1]).toEqual({ text: "", spans: [] });
     expect(r.lines[2].spans).toEqual([]);
   });
@@ -165,8 +180,8 @@ describe("filterAndMergeSpans", () => {
   it("does not mutate its input", () => {
     filterAndMergeSpans(stones, null);
     expect(stones).toEqual([
-      { start: 0, end: 5, words: ["stone"] },
-      { start: 1, end: 6, words: ["tones"] },
+      { start: 0, end: 5, words: ["stone"], whole: true },
+      { start: 1, end: 6, words: ["tones"], whole: false },
     ]);
   });
 });
@@ -177,9 +192,14 @@ describe("lineWithWordUppercased", () => {
     expect(lineWithWordUppercased(lines, "drums")).toBe("I hear the DRUMS");
   });
 
-  it("uppercases every match of the word within the line", () => {
+  it("uppercases only the first match of the word within the line", () => {
     const { lines } = extractWordleWords("hello world hello", set("hello"));
-    expect(lineWithWordUppercased(lines, "hello")).toBe("HELLO world HELLO");
+    expect(lineWithWordUppercased(lines, "hello")).toBe("HELLO world hello");
+  });
+
+  it("uppercases a whole match over an earlier substring match on the same line", () => {
+    const { lines } = extractWordleWords("eclipse clips clips", set("clips"));
+    expect(lineWithWordUppercased(lines, "clips")).toBe("eclipse CLIPS clips");
   });
 
   it("uppercases only the matched window of a substring match", () => {
@@ -193,9 +213,24 @@ describe("lineWithWordUppercased", () => {
     expect(lineWithWordUppercased(lines, "world")).toBe("hello WORLD");
   });
 
-  it("does not duplicate text when same-word spans overlap", () => {
+  it("prefers the first line with a whole match over an earlier substring match", () => {
+    const { lines } = extractWordleWords("total eclipse\nclips of film\nmore clips", set("clips"));
+    expect(lineWithWordUppercased(lines, "clips")).toBe("CLIPS of film");
+  });
+
+  it("leaves later substring matches lowercase on the chosen whole-match line", () => {
+    const { lines } = extractWordleWords("eclipse\nclips eclipse", set("clips"));
+    expect(lineWithWordUppercased(lines, "clips")).toBe("CLIPS eclipse");
+  });
+
+  it("uppercases the first substring match when the line has no whole match", () => {
+    const { lines } = extractWordleWords("eclipse eclipse", set("clips"));
+    expect(lineWithWordUppercased(lines, "clips")).toBe("eCLIPSe eclipse");
+  });
+
+  it("uppercases only the first of overlapping same-word matches", () => {
     const { lines } = extractWordleWords("aaaaaaa", set("aaaaa"));
-    expect(lineWithWordUppercased(lines, "aaaaa")).toBe("AAAAAAA");
+    expect(lineWithWordUppercased(lines, "aaaaa")).toBe("AAAAAaa");
   });
 
   it("returns null when the word matches no line", () => {

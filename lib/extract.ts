@@ -12,6 +12,12 @@ export interface Span {
   end: number;
   /** Distinct words whose matches this span covers, in first-appearance order. Never empty. */
   words: string[];
+  /**
+   * Set on raw extraction spans: true when the match is a whole word (or the
+   * stem of a simple inflection), false when it is hidden inside a longer
+   * word. Dropped by filterAndMergeSpans.
+   */
+  whole?: boolean;
 }
 
 export interface AnnotatedLine {
@@ -25,7 +31,10 @@ export interface AnnotatedLine {
 }
 
 export interface ExtractionResult {
-  /** Deduped, ordered by first appearance. */
+  /**
+   * Deduped, ordered by first whole occurrence; words that never appear whole
+   * are ordered by their first (substring) occurrence.
+   */
   words: WordEntry[];
   lines: AnnotatedLine[];
 }
@@ -79,37 +88,41 @@ export function filterAndMergeSpans(spans: Span[], visible: Set<string> | null):
       last.end = Math.max(last.end, s.end);
       for (const w of s.words) if (!last.words.includes(w)) last.words.push(w);
     } else {
-      merged.push({ ...s, words: [...s.words] });
+      merged.push({ start: s.start, end: s.end, words: [...s.words] });
     }
   }
   return merged;
 }
 
 /**
- * The first lyric line containing `word`, with every match of that word
- * uppercased in place (only the matched window, so a substring match inside a
+ * The first lyric line containing `word` as a whole word — or, when it never
+ * appears whole, the first line containing it at all — with one match of that
+ * word uppercased in place: the line's first whole match, else its first
+ * substring match (only the matched window, so a substring match inside a
  * longer word uppercases just those letters). Returns null when the word
- * matches no line.
+ * matches no line. Expects raw extraction spans.
  */
 export function lineWithWordUppercased(lines: AnnotatedLine[], word: string): string | null {
-  for (const line of lines) {
-    // Merging first also unions overlapping same-word spans (e.g. repeated
-    // letters), so no range is emitted twice.
-    const spans = filterAndMergeSpans(line.spans, new Set([word]));
-    if (spans.length === 0) continue;
-    let out = "";
-    let pos = 0;
-    for (const s of spans) {
-      out += line.text.slice(pos, s.start) + line.text.slice(s.start, s.end).toUpperCase();
-      pos = s.end;
-    }
-    return out + line.text.slice(pos);
-  }
-  return null;
+  const isMatch = (whole: boolean) => (s: Span) => s.words.includes(word) && (!whole || !!s.whole);
+  const line =
+    lines.find((l) => l.spans.some(isMatch(true))) ??
+    lines.find((l) => l.spans.some(isMatch(false)));
+  if (!line) return null;
+  // Raw spans are sorted by start, so find() picks the earliest match.
+  const span = (line.spans.find(isMatch(true)) ?? line.spans.find(isMatch(false)))!;
+  const { text } = line;
+  return (
+    text.slice(0, span.start) + text.slice(span.start, span.end).toUpperCase() + text.slice(span.end)
+  );
 }
 
 export function extractWordleWords(lyrics: string, wordSet: Set<string>): ExtractionResult {
   const entries = new Map<string, WordEntry>(); // insertion order = first appearance
+  // Sort position of each word: its first whole occurrence once one is seen,
+  // else its first occurrence. Matches are visited in reading order, so the
+  // first assignment of each kind is the earliest.
+  const order = new Map<string, { pos: number; whole: boolean }>();
+  let offset = 0; // running position across lines, for a single sortable number
   const lines: AnnotatedLine[] = lyrics.split(/\r?\n/).map((text) => {
     const spans: Span[] = [];
     for (const tok of tokenizeLine(text)) {
@@ -127,12 +140,20 @@ export function extractWordleWords(lyrics: string, wordSet: Set<string>): Extrac
           entry = { word: cand, wholeCount: 0, substringCount: 0 };
           entries.set(cand, entry);
         }
-        if (tok.norm.length === 5 || (inflected && i === 0)) entry.wholeCount++;
+        const whole = tok.norm.length === 5 || (inflected && i === 0);
+        if (whole) entry.wholeCount++;
         else entry.substringCount++;
-        spans.push({ start: tok.map[i], end: tok.map[i + 4] + 1, words: [cand] });
+        const start = tok.map[i];
+        const prev = order.get(cand);
+        if (!prev || (whole && !prev.whole)) order.set(cand, { pos: offset + start, whole });
+        spans.push({ start, end: tok.map[i + 4] + 1, words: [cand], whole });
       }
     }
+    offset += text.length + 1;
     return { text, spans };
   });
-  return { words: [...entries.values()], lines };
+  const words = [...entries.values()].sort(
+    (a, b) => order.get(a.word)!.pos - order.get(b.word)!.pos
+  );
+  return { words, lines };
 }
